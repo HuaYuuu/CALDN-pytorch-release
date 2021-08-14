@@ -13,6 +13,7 @@ import argparse
 import os
 import pprint
 import logging
+import cv2
 
 import torch
 import torch.nn.parallel
@@ -35,9 +36,12 @@ import models
 import time
 
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 
 logger = logging.getLogger(__name__)
 
+
+# os.environ['CUDA_VISIBLE_DEVICES'] = '3'
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train keypoints network')
@@ -216,29 +220,14 @@ def validate_fgvc(cfg, val_loader, val_dataset, class_model,
             if cfg.TEST.FLIP_TEST:  # Flip Test
                 # this part is ugly, because pytorch has not supported negative index
                 # input_flipped = model(input[:, :, :, ::-1])
-                class_input_flipped = np.flip(class_input.cpu().numpy(), 3).copy()
-                class_input_flipped = torch.from_numpy(class_input_flipped).cuda()
                 landmark_input_flipped = np.flip(landmark_input.cpu().numpy(), 3).copy()
                 landmark_input_flipped = torch.from_numpy(landmark_input_flipped).cuda()
-
-                # Flip Class Input
-                if 'all' in cfg.FUSE_MODULE.NAME:
-                    (size_class_model, wing_class_model, tail_class_model) = class_model
-                    size_class_output_flipped = size_class_model(class_input_flipped)
-                    wing_class_output_flipped = wing_class_model(class_input_flipped)
-                    tail_class_output_flipped = tail_class_model(class_input_flipped)
-                    class_output_flipped = {'size': size_class_output_flipped,
-                                            'tail': wing_class_output_flipped,
-                                            'wing': tail_class_output_flipped}
-                else:
-                    class_output_flipped = class_model(class_input_flipped)
-
-                landmark_output_flipped = landmark_model(class_output_flipped,
+                landmark_output_flipped = landmark_model(meta['class_tensor'],
                                                          landmark_input_flipped)
 
                 # Flip Prediction Back
                 landmark_output_flipped = flip_back(landmark_output_flipped.cpu().numpy(),
-                                                    val_dataset.flip_pairs)
+                                           val_dataset.flip_pairs)
                 landmark_output_flipped = torch.from_numpy(landmark_output_flipped.copy()).cuda()
 
                 # feature is not aligned, shift flipped heatmap for higher accuracy
@@ -292,9 +281,9 @@ def validate_fgvc(cfg, val_loader, val_dataset, class_model,
                 landmark_class_right)
 
             # Update Accuracy of Each instance
-            class_acc.update(class_avg_acc)  # Class Acc
-            landmark_acc.update(landmark_avg_acc, landmark_cnt)  # PCKh
-            NME.update(dist_sum / num_dist_cal, num_dist_cal)  # NME
+            landmark_acc.update(landmark_avg_acc, landmark_cnt)
+            class_acc.update(class_avg_acc)
+            NME.update(dist_sum / num_dist_cal, num_dist_cal)
 
             # measure elapsed time
             batch_time.update(batchend - batchstart)
@@ -317,20 +306,22 @@ def validate_fgvc(cfg, val_loader, val_dataset, class_model,
         totaltesttime = totaltesttime
         batchavgtime = batch_time.avg / cfg.TEST.BATCH_SIZE_PER_GPU
 
-        # Print Test Info
-        print('Total Network Test time: {totaltesttime:.5f} Batch Time: {batchavgtime:.5f} '\
+        # caculate each category result
+        PCK = np.divide(np.sum(landmark_acc_point_sum), np.sum(landmark_acc_point_num))
+
+        print('Total Network Test time: {totaltesttime:.5f} Batch Time: {batchavgtime:.5f} ' \
               .format(totaltesttime=totaltesttime, batchavgtime=batchavgtime))
-        msg = 'Total Network Test time: {totaltesttime:.5f} Batch Time: {batchavgtime:.5f} '\
-              .format(totaltesttime=totaltesttime, batchavgtime=batchavgtime)
+        msg = 'Total Network Test time: {totaltesttime:.5f} Batch Time: {batchavgtime:.5f} ' \
+            .format(totaltesttime=totaltesttime, batchavgtime=batchavgtime)
         logger.info(msg)
-        print('Total Landmark Test Result: [{}/{}] PCK {acc.avg:.5f} '
-              .format(len(val_loader), len(val_loader), acc=landmark_acc))
-        msg = 'Total Landmark Test Result: [{}/{}] PCK {acc.avg:.5f} '\
-            .format(len(val_loader), len(val_loader), acc=landmark_acc)
+        print('Total Landmark Test Result: [{}/{}] PCK {acc:.5f} '
+              .format(len(val_loader), len(val_loader), acc=PCK))
+        msg = 'Total Landmark Test Result: [{}/{}] PCK {acc:.5f} ' \
+            .format(len(val_loader), len(val_loader), acc=PCK)
         logger.info(msg)
-        print('Total Landmark Test Result: [{}/{}] NME {NME.avg:.5f} '
+        print('Total Test Result: [{}/{}] NME {NME.avg:.5f} '
               .format(len(val_loader), len(val_loader), NME=NME))
-        msg = 'Total Landmark Test Result: [{}/{}] NME {NME.avg:.5f} '\
+        msg = 'Total Test Result: [{}/{}] NME {NME.avg:.5f} ' \
             .format(len(val_loader), len(val_loader), NME=NME)
         logger.info(msg)
         print('Total Class Test Result: [{}/{}] Class Acc {acc.avg:.5f} '
@@ -486,30 +477,6 @@ def accuracy_withclass(output, target, hm_type='gaussian', thr=0.5):
     if cnt != 0:
         acc[0] = avg_acc
     return acc, avg_acc, cnt, pred, class_sum, class_right, dist_sum, num_dist_cal
-
-
-def calc_dists_withrate(preds, target, normalize, target_weight):
-    preds = preds.astype(np.float32)
-    target = target.astype(np.float32)
-    dists = np.zeros((preds.shape[1], preds.shape[0]))
-    for n in range(preds.shape[0]):
-        for c in range(preds.shape[1]):
-            # if target[n, c, 0] > 1 and target[n, c, 1] > 1:
-            if target_weight is not None:
-                if target_weight[n, c] > 0.5:
-                    normed_preds = preds[n, c, :] / normalize[n]
-                    normed_targets = target[n, c, :] / normalize[n]
-                    dists[c, n] = np.linalg.norm(normed_preds - normed_targets)
-                else:
-                    dists[c, n] = -1
-            else:
-                if target[n, c, 0] > 1 and target[n, c, 1] > 1:
-                    normed_preds = preds[n, c, :] / normalize[n]
-                    normed_targets = target[n, c, :] / normalize[n]
-                    dists[c, n] = np.linalg.norm(normed_preds - normed_targets)
-                else:
-                    dists[c, n] = -1
-    return dists
 
 
 def caculate_class_acc(class_out, class_label):
