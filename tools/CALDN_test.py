@@ -306,9 +306,8 @@ def validate_fgvc(cfg, val_loader, val_dataset, class_model,
         totaltesttime = totaltesttime
         batchavgtime = batch_time.avg / cfg.TEST.BATCH_SIZE_PER_GPU
 
-        # caculate each category result
+        # caculate result
         PCK = np.divide(np.sum(landmark_acc_point_sum), np.sum(landmark_acc_point_num))
-
         print('Total Network Test time: {totaltesttime:.5f} Batch Time: {batchavgtime:.5f} ' \
               .format(totaltesttime=totaltesttime, batchavgtime=batchavgtime))
         msg = 'Total Network Test time: {totaltesttime:.5f} Batch Time: {batchavgtime:.5f} ' \
