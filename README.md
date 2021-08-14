@@ -1,10 +1,10 @@
-# CALDN-pytorch-release
+### CALDN-pytorch-release
 An official implementation of "Category-Aware Aircraft Landmark Detection" (2020 SPL)
 
 ### News
-We have released the proposed PVALD dataset and the trained weight of CALDN.
-The proposed PVALD dataset can be download via https://pan.baidu.com/s/1MUXIPrBGvwjF2hV9T1Hg2A(Code: i5ur) 
-The trained weights of the proposed CALDN can be download via https://pan.baidu.com/s/1PnIzLXEvRb8Abgdf_BjT0g(Code: 3pin)
+1. We have released the proposed PVALD dataset and the trained weight of CALDN.
+2. The proposed PVALD dataset can be download via https://pan.baidu.com/s/1MUXIPrBGvwjF2hV9T1Hg2A(Code: i5ur) 
+3. The trained weights of the proposed CALDN can be download via https://pan.baidu.com/s/1PnIzLXEvRb8Abgdf_BjT0g(Code: 3pin)
 
 ### Preparation
 1. Download the Code of CALDN.
