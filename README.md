@@ -30,7 +30,7 @@ Then, the meaning of each individual elements is:
 ### Citation
 If you use PVALD dataset or the code of CALDN in your work, please cite our publication as listed.
 
-@ARTICLE{CALDN,
+@ARTICLE{li2021category,
   author={Li, Yi and Chang, Yi and Ye, Yuntong and Zou, Xu and Zhong, Sheng and Yan, Luxin},
   journal={IEEE Signal Processing Letters}, 
   title={Category-Aware Aircraft Landmark Detection}, 
@@ -40,11 +40,13 @@ If you use PVALD dataset or the code of CALDN in your work, please cite our publ
   pages={61-65},
   doi={10.1109/LSP.2020.3045623}}
 
-@ARTICLE{SALD,
-  author={Ye, Yuntong, Chang, Yi and Li, Yi and Yan, Luxin},
-  journal={International Conference on Image and Graphics 2021}, 
-  title={Skeleton-Aware Network for Aircraft Landmark Detection}, 
-  year={2021}}
+@article{ye2021skeleton,
+  author={Ye, Yuntong and Chang, Yi and Li, Yi and Yan, Luxin},
+  title={Skeleton-aware Network for Aircraft Landmark Detection},
+  booktitle={International Conference on Image and Graphics},
+  year={2021},
+  organization={Springer}
+}
 
 ### Contact
 
